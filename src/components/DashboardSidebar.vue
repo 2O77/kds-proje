@@ -1,306 +1,190 @@
 <template>
     <div class="sidebar">
         <div class="title-box">
-            <Button v-if="isSmallScreen" icon="pi pi-bars" @click="closeSidebar" />
             <div class="title-text">
-                <h1 class="text">{{ cityName }}</h1> <!-- Display the city name here -->
+                <h1 class="text">{{ cityName }}</h1>
                 <p class="text">datasını görmektesiniz</p>
             </div>
         </div>
-        <div class="sidebar-content">
-            <div class="sidebar-content-item">
-                <h3 style="margin-bottom: 3px;">Sevilme Oranı</h3>
-                <h5 style="text-align: center; margin: 0; padding: 0;">(1 ile 5 arası değerler üzerinden
-                    hesaplanmıştır.)</h5>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="line" :data="ratingChartData" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Beklenen Fiyat</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="priceChartData" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3 style="margin-bottom: 3px;">Soru 1</h3>
-                <h5 style="text-align: center; margin: 0; padding: 0;">(Bütün sorular %'lik olarak hesaplanmıştır.)</h5>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData1" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Soru 2</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData2" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Soru 3</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData3" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Soru 4</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData4" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Soru 5</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData5" />
-                </div>
-            </div>
-            <div class="sidebar-content-item">
-                <h3>Soru 6</h3>
-                <div class="chart-box">
-                    <Chart v-if="isSidebarVisible" type="bar" :data="trueFalseQuestionChartData6" />
-                </div>
-            </div>
+        <div class="sidebar-top">
+            <h3>Firmamızın Hastane Sayısı: {{ totalHospitals }}</h3>
+            <canvas ref="chartCanvas"></canvas>
+        </div>
+        <div class="sidebar-bottom">
+            <h3>Hastaneye En Çok İhtiyaç Duyan İller</h3>
+            <ul>
+                <li v-for="(city, index) in citiesExceedingCapacity" :key="index">
+                    {{ city.sehir }} - Hasta Sayısı: {{ city.totalHastaSayisi }}, Kapasite: {{ city.totalKapasite }}
+                </li>
+            </ul>
         </div>
     </div>
 </template>
 
+
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue';
-import { useWindowSize } from '@vueuse/core';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { Chart, registerables } from 'chart.js';
+
+Chart.register(...registerables);
 
 const props = defineProps({
-    isSidebarVisible: Boolean,
-    cityName: String,
-    responseData: Array,
+    cityName: {
+        type: String,
+        default: ''
+    },
+    responseData: {
+        type: Array,
+        default: () => []
+    },
+    responseDataByCity: {
+        type: Array,
+        default: () => []
+    }
 });
 
-const { width } = useWindowSize();
-const isSmallScreen = computed(() => width.value < 1300);
+const chart = ref(null);
+const chartCanvas = ref(null);
+const totalHospitals = ref(0);
+const citiesExceedingCapacity = ref([]);
 
-const emit = defineEmits(['close-sidebar']);
-const closeSidebar = () => {
-    emit('closeSidebar');
+const setupChart = () => {
+    const canvas = chartCanvas.value.getContext('2d');
+    const cityData = props.responseDataByCity.filter(item => item.sehir === props.cityName);
+
+    console.log("response data by city", props.responseDataByCity);
+
+    // Ensure you're getting all the data
+    const years = [...new Set(cityData.map(item => item.yil))];
+
+    // Aggregate data by year
+    const hastaSayisi = years.map(
+        year => cityData.filter(item => item.yil === year).reduce((sum, item) => sum + item.hasta_sayisi, 0)
+    );
+
+    const totalKapasite = years.map(
+        year => cityData.filter(item => item.yil === year).reduce((sum, item) => sum + item.total_kapasite, 0)
+    );
+
+    // Calculate total hospitals for the city
+    totalHospitals.value = cityData.reduce((sum, item) => sum + item.hastane_sayisi, 0);
+
+    // Destroy the previous chart if it exists
+    if (chart.value) {
+        chart.value.destroy();
+    }
+
+    // Create new chart
+    chart.value = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels: years,
+            datasets: [
+                {
+                    label: 'Hasta Sayısı',
+                    data: hastaSayisi,
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                },
+                {
+                    label: 'Hastanelerin Toplam Kapasitesi',
+                    data: totalKapasite,
+                    backgroundColor: 'rgba(153, 102, 255, 0.6)',
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            scales: {
+                x: {
+                    beginAtZero: true,
+                },
+                y: {
+                    beginAtZero: true,
+                },
+            },
+        },
+    });
 };
 
-const ratingChartData = ref(null);
-const priceChartData = ref(null);
-const trueFalseQuestionChartData1 = ref(null);
-const trueFalseQuestionChartData2 = ref(null);
-const trueFalseQuestionChartData3 = ref(null);
-const trueFalseQuestionChartData4 = ref(null);
-const trueFalseQuestionChartData5 = ref(null);
-const trueFalseQuestionChartData6 = ref(null);
 
+const setupCitiesExceedingCapacity = () => {
+    // Log the response data correctly (without .value)
+    console.log("response data:", props.responseData);
 
-const processData = (response) => {
-    const months = [
-        'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz',
-        'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
-    ];
-
-    const ratings = [];
-    const prices = [];
-    const trueFalseQuestion1 = [];
-    const trueFalseQuestion2 = [];
-    const trueFalseQuestion3 = [];
-    const trueFalseQuestion4 = [];
-    const trueFalseQuestion5 = [];
-    const trueFalseQuestion6 = [];
-    const labels = [];
-
-    // Veriyi işleme
-    response.forEach((dataPoint) => {
-        if (dataPoint.month && dataPoint.month.includes('-')) {
-            const [year, month] = dataPoint.month.split('-');
-            const monthIndex = parseInt(month, 10) - 1;
-
-            if (monthIndex >= 0 && monthIndex < months.length) {
-                const monthName = months[monthIndex];
-
-                labels.push(`${monthName} ${year}`);
-
-                ratings.push(parseFloat(dataPoint.avg_rating) || 0);
-                prices.push(parseFloat(dataPoint.avg_expected_price) || 0);
-
-                trueFalseQuestion1.push(parseFloat(dataPoint.avg_question_1) * 100 || 0);
-                trueFalseQuestion2.push(parseFloat(dataPoint.avg_question_2) * 100 || 0);
-                trueFalseQuestion3.push(parseFloat(dataPoint.avg_question_3) * 100 || 0);
-                trueFalseQuestion4.push(parseFloat(dataPoint.avg_question_4) * 100 || 0);
-                trueFalseQuestion5.push(parseFloat(dataPoint.avg_question_5) * 100 || 0);
-                trueFalseQuestion6.push(parseFloat(dataPoint.avg_question_6) * 100 || 0);
-            }
+    // Aggregate all cities' patient count and capacity (not filtered by year)
+    const aggregatedCities = props.responseData.reduce((acc, item) => {
+        const existingCity = acc.find(city => city.sehir === item.sehir);
+        if (existingCity) {
+            existingCity.totalHastaSayisi += item.hasta_sayisi;
+            existingCity.totalKapasite += item.total_kapasite;
+        } else {
+            acc.push({
+                sehir: item.sehir,
+                totalHastaSayisi: item.hasta_sayisi,
+                totalKapasite: item.total_kapasite,
+            });
         }
+        return acc;
+    }, []);
+
+    // Log aggregated cities (all cities)
+    console.log('Aggregated Cities (All):', aggregatedCities);
+
+    const exceedingCities = aggregatedCities.filter(
+        city => city.totalHastaSayisi > city.totalKapasite
+    );
+
+    const sortedExceedingCities = exceedingCities.sort((a, b) => {
+        const diffA = a.totalHastaSayisi - a.totalKapasite;
+        const diffB = b.totalHastaSayisi - b.totalKapasite;
+        return diffB - diffA;
     });
 
-    // Grafik verisi oluşturma
-    const ratingData = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Sevilme Oranı',
-                data: ratings,
-                fill: false,
-                borderColor: '#a78bfa', // Yeni renk
-                tension: 0.1,
-                borderWidth: 1.5, // Yeni weight
-                backgroundColor: 'rgba(196, 181, 253, 0.15)', // fillColor renginden uyarlanmış arka plan rengi
-            },
-        ],
-    };
+    console.log('Exceeding Cities (Sorted):', sortedExceedingCities);
 
-    const priceData = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Beklenen Fiyat',
-                data: prices,
-                backgroundColor: 'rgba(196, 181, 253, 0.15)', // fillColor'dan uyarlanmış arka plan
-                borderColor: '#a78bfa', // Yeni renk
-                borderWidth: 1.5, // Yeni weight
-            },
-        ],
-    };
-
-
-    const trueFalseQuestionData1 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Bu kıyafeti alırken kalite beklentiniz karşılandı mı?',
-                data: trueFalseQuestion1,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgb(75, 192, 192)',
-                borderWidth: 1,
-            },
-        ],
-    };
-
-    const trueFalseQuestionData2 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Ürünün tasarımı beklentilerinizi karşıladı mı?',
-                data: trueFalseQuestion2,
-                backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                borderColor: 'rgb(255, 99, 132)',
-                borderWidth: 1,
-            },
-        ],
-    };
-
-    const trueFalseQuestionData3 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Kıyafetin bedeni size uygun mu?',
-                data: trueFalseQuestion3,
-                backgroundColor: 'rgba(75, 112, 192, 0.2)', // Mavi tonunda arka plan
-                borderColor: 'rgb(75, 112, 192)', // Mavi tonunda sınır
-                borderWidth: 1,
-            },
-        ],
-    };
-
-
-    const trueFalseQuestionData4 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Kıyafetin dikişleri ve işçiliği beklentilerinizi karşıladı mı?',
-                data: trueFalseQuestion4,
-                backgroundColor: 'rgba(255, 159, 64, 0.2)',
-                borderColor: 'rgb(255, 159, 64)',
-                borderWidth: 1,
-            },
-        ],
-    };
-
-    const trueFalseQuestionData5 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Markanın genel kalitesine dair beklentileriniz arttı mı?',
-                data: trueFalseQuestion5,
-                backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                borderColor: 'rgb(75, 192, 192)',
-                borderWidth: 1,
-            },
-        ],
-    };
-
-    const trueFalseQuestionData6 = {
-        labels: labels,
-        datasets: [
-            {
-                label: 'Ürünün genel kalitesine dair olumsuz deneyim yaşadınız mı?',
-                data: trueFalseQuestion6,
-                backgroundColor: 'rgba(155, 49, 132, 0.2)',
-                borderColor: 'rgb(155, 49, 132)',
-                borderWidth: 1,
-            },
-        ],
-    };
-
-    return {
-        ratingData,
-        priceData,
-        trueFalseQuestionData1,
-        trueFalseQuestionData2,
-        trueFalseQuestionData3,
-        trueFalseQuestionData4,
-        trueFalseQuestionData5,
-        trueFalseQuestionData6,
-    };
+    citiesExceedingCapacity.value = sortedExceedingCities;
 };
 
 
-onMounted(() => {
-    if (props.responseData) {
-        const {
-            ratingData,
-            priceData,
-            trueFalseQuestionData1,
-            trueFalseQuestionData2,
-            trueFalseQuestionData3,
-            trueFalseQuestionData4,
-            trueFalseQuestionData5,
-            trueFalseQuestionData6,
-        } = processData(props.responseData);
+watch(
+    () => [props.cityName, props.responseDataByCity],
+    () => {
+        if (props.cityName) {
+            setupChart();
+        }
+    },
+    { immediate: true, deep: true }
+);
 
-        ratingChartData.value = ratingData;
-        priceChartData.value = priceData;
-        trueFalseQuestionChartData1.value = trueFalseQuestionData1;
-        trueFalseQuestionChartData2.value = trueFalseQuestionData2;
-        trueFalseQuestionChartData3.value = trueFalseQuestionData3;
-        trueFalseQuestionChartData4.value = trueFalseQuestionData4;
-        trueFalseQuestionChartData5.value = trueFalseQuestionData5;
-        trueFalseQuestionChartData6.value = trueFalseQuestionData6;
+watch(
+    () => props.responseData,
+    (newData) => {
+        if (newData && newData.length > 0) {
+            setupCitiesExceedingCapacity();
+        }
+    },
+    { immediate: true }
+);
+
+
+// Cleanup on component unmount
+onBeforeUnmount(() => {
+    if (chart.value) {
+        chart.value.destroy();
     }
 });
 
-watch(() => props.responseData, (newResponseData) => {
-    if (newResponseData) {
-        const {
-            ratingData,
-            priceData,
-            trueFalseQuestionData1,
-            trueFalseQuestionData2,
-            trueFalseQuestionData3,
-            trueFalseQuestionData4,
-            trueFalseQuestionData5,
-            trueFalseQuestionData6,
-        } = processData(newResponseData);
-
-        ratingChartData.value = ratingData;
-        priceChartData.value = priceData;
-        trueFalseQuestionChartData1.value = trueFalseQuestionData1;
-        trueFalseQuestionChartData2.value = trueFalseQuestionData2;
-        trueFalseQuestionChartData3.value = trueFalseQuestionData3;
-        trueFalseQuestionChartData4.value = trueFalseQuestionData4;
-        trueFalseQuestionChartData5.value = trueFalseQuestionData5;
-        trueFalseQuestionChartData6.value = trueFalseQuestionData6;
-    }
-}, { immediate: true });
+// Initialize on mounted
+onMounted(() => {
+    setupCitiesExceedingCapacity();
+    setupChart();
+});
 </script>
+
 
 
 <style scoped>
@@ -311,9 +195,71 @@ watch(() => props.responseData, (newResponseData) => {
     display: flex;
     flex-direction: column;
     align-items: center;
-    overflow-y: auto;
     /* Add this line */
     transition: width 0.3s ease, opacity 0.3s ease;
+}
+
+.sidebar-top {
+    width: 100%;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Sidebar Bottom Section */
+.sidebar-bottom {
+    border-top: 1px solid var(--p-content-border-color);
+    font-family: 'Arial', sans-serif;
+}
+
+.sidebar-bottom h3 {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.sidebar-bottom ul {
+    list-style: none;
+    padding: 10px;
+    overflow-y: auto;
+    max-height: 450px;
+}
+
+.sidebar-bottom li {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--p-content-border-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Hover Effect for City Items */
+.sidebar-bottom li:hover {
+    background-color: var(--p-content-border-color);
+}
+
+/* City Name */
+.sidebar-bottom li span.city-name {
+    font-weight: bold;
+    color: #555;
+}
+
+/* Patient and Capacity Data */
+.sidebar-bottom li span.city-data {
+    color: #777;
+    font-size: 0.9rem;
+}
+
+/* Add some space between the numbers */
+.sidebar-bottom li span.city-data span {
+    margin-left: 5px;
+    color: #333;
+    font-weight: bold;
 }
 
 .horizontal-bar-chart {
@@ -359,21 +305,6 @@ watch(() => props.responseData, (newResponseData) => {
     flex-direction: column;
     width: 100%;
     gap: 10px;
-}
-
-/* Media Query for close button on small screens */
-@media (max-width: 1300px) {
-    .title-box {
-        flex-direction: row;
-        justify-content: space-between;
-        padding: 0 10px;
-    }
-
-    .title-text {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-    }
 }
 
 .title-text {

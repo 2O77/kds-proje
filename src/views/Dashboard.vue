@@ -1,123 +1,87 @@
 <template>
     <div class="dashboard-page">
-        <div class="main">
-            <div class="topbar-section">
-                <DashboardTopbar @toggleSidebarVisibility="toggleSidebarVisibility" @update="handleUpdate"
-                    :sliderAgeRange="sliderAgeRange" :model="model" :size="size" :gender="gender" :logout="logout" />
-            </div>
-            <div class="map-section">
-                <TurkiyeCitiesMapComponent :isSidebarVisible="isSidebarVisible" @openSidebar="openSidebar" />
-            </div>
-        </div>
-        <div :class="isSidebarVisible ? 'sidebar-section' : 'sidebar-not-visible'">
-            <DashboardSidebar :isSidebarVisible="isSidebarVisible" :cityName="selectedCity" @closeSidebar="closeSidebar"
+        <div class="sidebar-section">
+            <DashboardSidebar :cityName="selectedCity" :responseDataByCity="responseDataByCity"
                 :responseData="responseData" />
+        </div>
+        <div class="main">
+            <div class="map-section">
+                <TurkiyeCitiesMapComponent @citySelected="handleCitySelected" />
+            </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
-import TurkiyeCitiesMapComponent from '../components/TurkiyeCitiesMapComponent.vue'
-import DashboardTopbar from '../components/DashboardTopbar.vue'
-import DashboardSidebar from '../components/DashboardSidebar.vue'
-import AuthService from '../services/AuthService'
-import { useRouter } from 'vue-router'
+import { onMounted, ref, watch } from 'vue';
+import TurkiyeCitiesMapComponent from '../components/TurkiyeCitiesMapComponent.vue';
+import DashboardSidebar from '../components/DashboardSidebar.vue';
 
-const router = useRouter()
+const selectedCity = ref('');
+const responseDataByCity = ref([]);
+const responseData = ref([]);
 
-const isSidebarVisible = ref(true)
-const selectedCity = ref("Türkiye Geneli")
-const model = ref(null)
-const size = ref(null)
-const gender = ref(null)
-const sliderAgeRange = ref([0, 99])
+const handleCitySelected = (cityName) => {
+    selectedCity.value = cityName;
+    console.log('Selected city:', cityName);
+};
 
-const responseData = ref(null)
-
-const toggleSidebarVisibility = () => {
-    isSidebarVisible.value = !isSidebarVisible.value
-    selectedCity.value = "Türkiye Geneli"
-}
-
-const openSidebar = (cityName) => {
-    isSidebarVisible.value = true
-    selectedCity.value = cityName
-
-}
-
-const closeSidebar = () => {
-    isSidebarVisible.value = false
-}
-
-const handleUpdate = (updatedValues) => {
-    sliderAgeRange.value = updatedValues.sliderAgeRange
-    model.value = updatedValues.model
-    size.value = updatedValues.size
-    gender.value = updatedValues.gender
-
-    if (model.value === "Bütün Modeller") {
-        model.value = null
-    }
-
-    if (size.value === "Bütün Bedenler") {
-        size.value = null
-    }
-}
-
-const sendDashboardRequest = async () => {
-    const data = {
-        age_range: sliderAgeRange.value.join('-'),
-        model: model.value,
-        size: size.value,
-        gender: gender.value,
-        city: selectedCity.value
-    }
-
-    if (data.city === "Türkiye Geneli") {
-        data.city = null
-    }
+const sendDashboardRequestByCity = async () => {
+    if (!selectedCity.value) return;
 
     try {
-        const response = await fetch('http://localhost:3000/dashboard', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
-        })
-        const result = await response.json()
-        console.log('Response:', result)
+        console.log('Sending request for city:', selectedCity.value);
 
-        responseData.value = result
-    } catch (error) {
-        console.error('Error making request:', error)
-    }
-}
+        const response = await fetch(`http://localhost:3001/potentials/${selectedCity.value}`);
 
-const getToken = async () => {
-    try {
-        const token = await AuthService.getToken();
-        if (!token) {
-            throw new Error('Invalid token');
+        if (!response.ok) {
+            throw new Error('Failed to fetch data');
         }
-        console.log('Token:', token);
+
+        const data = await response.json();
+
+        console.log('Response data by city:', data);
+
+        responseDataByCity.value = data;
+
+        console.log('Response data by city:', responseDataByCity.value);
     } catch (error) {
-        console.error('Failed to get token', error.message);
-        router.push('/auth');
+        console.error('Error fetching data:', error);
+        responseDataByCity.value = [];
     }
 };
 
-watch([sliderAgeRange, model, size, gender, selectedCity], () => {
-    sendDashboardRequest();
-}, { immediate: true })
+const sendDashboardRequest = async () => {
+    try {
+        console.log('Sending request for city:', selectedCity.value);
 
-onMounted(() => {
-    getToken();
-    sendDashboardRequest();
-})
+        const response = await fetch(`http://localhost:3001/potentials`);
 
+        if (!response.ok) {
+            throw new Error('Failed to fetch data');
+        }
+
+        const data = await response.json();
+
+        console.log('Response data:', data);
+
+        responseData.value = data;
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        responseData.value = [];
+    }
+}
+
+watch(selectedCity, (newVal) => {
+    console.log('Selected city changed:', newVal);
+    sendDashboardRequestByCity();  // Fetch data when the selected city changes
+}, { immediate: true });
+
+onMounted(async () => {
+    await sendDashboardRequest();  // Fetch data when the component is mounted
+});
 </script>
+
 
 <style scoped>
 .dashboard-page {
@@ -156,36 +120,5 @@ onMounted(() => {
     height: 100%;
     display: flex;
     flex-direction: column;
-}
-
-@media (max-width: 1300px) {
-
-    .sidebar-section,
-    .sidebar-not-visible {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 100%;
-        height: 100%;
-        background-color: var(--background-color);
-        z-index: 10000;
-        transition: width 0.3s ease, opacity 0.3s ease;
-    }
-
-    .sidebar-section {
-        opacity: 1;
-        width: 100%;
-        /* Full width overlay */
-        transition: opacity 0.3s ease;
-    }
-
-    .sidebar-not-visible {
-        opacity: 0;
-        width: 0;
-    }
-
-    .map-section {
-        margin: 0;
-    }
 }
 </style>
