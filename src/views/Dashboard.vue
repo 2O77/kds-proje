@@ -16,14 +16,19 @@
 import { onMounted, ref, watch } from 'vue';
 import TurkiyeCitiesMapComponent from '../components/TurkiyeCitiesMapComponent.vue';
 import DashboardSidebar from '../components/DashboardSidebar.vue';
+import AuthService from '../services/AuthService';
 
 const selectedCity = ref('');
 const responseDataByCity = ref([]);
 const responseData = ref([]);
 
 const handleCitySelected = (cityName) => {
-    selectedCity.value = cityName;
-    console.log('Selected city:', cityName);
+    if (cityName) {
+        selectedCity.value = cityName;
+        console.log('Selected city:', cityName);
+    } else {
+        console.warn('No city selected');
+    }
 };
 
 const sendDashboardRequestByCity = async () => {
@@ -72,13 +77,27 @@ const sendDashboardRequest = async () => {
     }
 }
 
+const getToken = async () => {
+    try {
+        const token = await AuthService.getToken();
+        if (!token) {
+            throw new Error('Invalid token');
+        }
+
+        console.log('Token:', token);
+    } catch (error) {
+        console.error('Failed to get token', error.message);
+        router.push('/auth');
+    }
+};
+
 watch(selectedCity, (newVal) => {
-    console.log('Selected city changed:', newVal);
     sendDashboardRequestByCity();  // Fetch data when the selected city changes
 }, { immediate: true });
 
 onMounted(async () => {
     await sendDashboardRequest();  // Fetch data when the component is mounted
+    await getToken();  // Get token when the component is mounted
 });
 </script>
 

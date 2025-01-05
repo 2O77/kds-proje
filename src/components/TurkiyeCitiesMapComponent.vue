@@ -41,24 +41,24 @@ const loadGeoJsonLayer = async () => {
 
     L.geoJSON(geoJsonData, {
       style: {
-        color: '#a78bfa',
+        color: '#fbbf24',
         weight: 3.1,
         opacity: 0.8,
-        fillColor: '#c4b5fd',
-        fillOpacity: 0.15
+        fillColor: '#fcd34d',
+        fillOpacity: 0.10
       },
       onEachFeature: (feature, layer) => {
         layer.on('click', () => {
           if (selectedLayer.value) {
             selectedLayer.value.setStyle({
-              color: '#a78bfa',
-              fillColor: '#c4b5fd',
+              color: '#fbbf24',
+              fillColor: '#fcd34d',
               fillOpacity: 0.15
             })
           }
 
           layer.setStyle({
-            fillColor: '#7c3aed',
+            fillColor: '#f59e0b',
             fillOpacity: 1
           })
 
@@ -75,8 +75,14 @@ const loadGeoJsonLayer = async () => {
 }
 
 onMounted(() => {
+  const mapElement = document.getElementById('map')
+  if (!mapElement) {
+    console.error('Map element not found!')
+    return
+  }
   loadMap()
 })
+
 </script>
 
 <style>

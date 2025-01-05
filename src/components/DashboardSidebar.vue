@@ -1,13 +1,19 @@
 <template>
     <div class="sidebar">
         <div class="title-box">
-            <div class="title-text">
+            <div class="title-text" v-if="cityName">
                 <h1 class="text">{{ cityName }}</h1>
                 <p class="text">datasını görmektesiniz</p>
             </div>
+            <div class="title-text" v-else>
+                <h1 class="text">Medicare</h1>
+                <p class="text">Data görmek için şehir seçiniz</p>
+            </div>
+            <Button class="sidebar-button" severity="secondary" @click="handleLogout">Logout</Button>
         </div>
         <div class="sidebar-top">
-            <h3>Firmamızın Hastane Sayısı: {{ totalHospitals }}</h3>
+            <h3 v-if="cityName">Firmamızın Hastane Sayısı: {{ totalHospitals }}</h3>
+            <h3 v-else>Hastane sayısını görüntülemek için şehir seçiniz</h3>
             <canvas ref="chartCanvas"></canvas>
         </div>
         <div class="sidebar-bottom">
@@ -25,6 +31,8 @@
 <script setup>
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { Chart, registerables } from 'chart.js';
+import AuthService from '../services/AuthService';
+import router from '../router';
 
 Chart.register(...registerables);
 
@@ -55,7 +63,7 @@ const setupChart = () => {
     console.log("response data by city", props.responseDataByCity);
 
     // Ensure you're getting all the data
-    const years = [...new Set(cityData.map(item => item.yil))];
+    const years = [...new Set(cityData.map(item => item.yil))].sort((a, b) => a - b);
 
     // Aggregate data by year
     const hastaSayisi = years.map(
@@ -83,15 +91,15 @@ const setupChart = () => {
                 {
                     label: 'Hasta Sayısı',
                     data: hastaSayisi,
-                    backgroundColor: 'rgba(75, 192, 192, 0.6)',
-                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(65, 158, 5, 0.6)',
+                    borderColor: 'rgba(65, 158, 5, 1)',
                     borderWidth: 1,
                 },
                 {
                     label: 'Hastanelerin Toplam Kapasitesi',
                     data: totalKapasite,
-                    backgroundColor: 'rgba(153, 102, 255, 0.6)',
-                    borderColor: 'rgba(153, 102, 255, 1)',
+                    backgroundColor: 'rgba(219, 33, 4, 0.6)',
+                    borderColor: 'rgba(219, 33, 4, 1)',
                     borderWidth: 1,
                 },
             ],
@@ -149,6 +157,14 @@ const setupCitiesExceedingCapacity = () => {
     citiesExceedingCapacity.value = sortedExceedingCities;
 };
 
+const handleLogout = () => {
+    if (confirm('Are you sure you want to logout?')) {
+        AuthService.logout();
+
+        router.push('/auth');
+    }
+};
+
 
 watch(
     () => [props.cityName, props.responseDataByCity],
@@ -171,21 +187,11 @@ watch(
 );
 
 
-// Cleanup on component unmount
-onBeforeUnmount(() => {
-    if (chart.value) {
-        chart.value.destroy();
-    }
-});
-
-// Initialize on mounted
 onMounted(() => {
     setupCitiesExceedingCapacity();
     setupChart();
 });
 </script>
-
-
 
 <style scoped>
 .sidebar {
@@ -212,7 +218,6 @@ onMounted(() => {
 /* Sidebar Bottom Section */
 .sidebar-bottom {
     border-top: 1px solid var(--p-content-border-color);
-    font-family: 'Arial', sans-serif;
 }
 
 .sidebar-bottom h3 {
@@ -240,7 +245,7 @@ onMounted(() => {
 
 /* Hover Effect for City Items */
 .sidebar-bottom li:hover {
-    background-color: var(--p-content-border-color);
+    background-color: #ccc8a3
 }
 
 /* City Name */
@@ -270,15 +275,30 @@ onMounted(() => {
     width: 100%;
     height: 111px;
     min-height: 100px;
-    min-height: 100px;
     display: flex;
     justify-content: center;
+    /* Center the title-text within the parent container */
     align-items: center;
-    flex-direction: column;
+    /* Vertically center items */
+    position: relative;
+    /* Required for the absolutely positioned button */
+
     gap: 10px;
     border-bottom: 1px solid var(--p-content-border-color);
-    position: relative;
 }
+
+.title-text {
+    text-align: center;
+    /* Center-align the text inside the title-text */
+}
+
+.sidebar-button {
+    position: absolute;
+    /* Position the button to the right */
+    right: 10px;
+    /* Distance from the right edge */
+}
+
 
 .text {
     padding: 0;

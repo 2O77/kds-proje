@@ -1,9 +1,8 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-
+  font-family: "DM Serif Text", serif;  
   color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  --background-color:  #0e0621;
+  color: rgba(17, 16, 16, 0.87);
+  --background-color:  #e6e4d3;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
